@@ -1,5 +1,5 @@
 # Stage 1: Build static binary
-FROM golang:1.23-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.23-alpine AS builder
 
 WORKDIR /src
 
@@ -10,7 +10,7 @@ RUN go mod download
 COPY cmd/ ./cmd/
 
 ARG TARGETOS=linux
-ARG TARGETARCH=amd64
+ARG TARGETARCH
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build \
