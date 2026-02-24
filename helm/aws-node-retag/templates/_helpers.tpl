@@ -7,10 +7,14 @@ Expand the name of the chart.
 
 {{/*
 Full name combining release and chart name, with fullnameOverride support.
+If the release name already contains the chart name the chart name is not appended,
+preventing names like "aws-node-retag-aws-node-retag".
 */}}
 {{- define "aws-node-retag.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else if contains (include "aws-node-retag.name" .) .Release.Name }}
+{{- .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- else }}
 {{- printf "%s-%s" .Release.Name (include "aws-node-retag.name" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}
