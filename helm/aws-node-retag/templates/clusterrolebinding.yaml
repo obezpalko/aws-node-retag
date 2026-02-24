@@ -10,5 +10,5 @@ roleRef:
   name: {{ include "aws-node-retag.fullname" . }}
 subjects:
   - kind: ServiceAccount
-    name: {{ .Values.serviceAccount.name }}
+    name: {{ include "aws-node-retag.serviceAccountName" . }}
     namespace: {{ .Values.namespace }}

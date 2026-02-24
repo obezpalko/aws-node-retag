@@ -1,9 +1,20 @@
-# Container image
+# Override the chart name.
+nameOverride: ""
+
+# Override the full resource name (release-chart).
+fullnameOverride: ""
+
+# Container image.
 image:
   repository: ghcr.io/obezpalko/aws-node-retag
-  # Defaults to Chart.appVersion when empty
+  # Defaults to Chart.appVersion when empty.
   tag: ""
   pullPolicy: IfNotPresent
+
+# Secrets used to pull the image from a private registry.
+# When serviceAccount.create is true these are also added to the ServiceAccount.
+imagePullSecrets: []
+# - name: my-registry-secret
 
 # AWS tags applied to EC2 instances and EBS volumes for every new node.
 # At least one tag is required.
@@ -13,24 +24,56 @@ image:
 #     Team: platform
 tags: {}
 
-# IAM Role ARN for IRSA (required).
-# The role must allow ec2:CreateTags and ec2:DescribeInstances.
-# See iam/ directory for policy and trust-policy templates.
-irsaRoleArn: ""
+# Set to true to log what would be tagged without making any AWS or Kubernetes writes.
+dryRun: true
+
+# Keep at 1 — multiple replicas race on the idempotency annotation write.
+# strategy: Recreate is set in the Deployment template for safe restarts.
+replicaCount: 1
+
+serviceAccount:
+  # Create a new ServiceAccount. Set to false to use an existing one.
+  create: true
+  # Name of the ServiceAccount.
+  # When create is true: defaults to the fullname when empty.
+  # When create is false: required — must name an existing ServiceAccount.
+  name: ""
+  # Annotations added to the ServiceAccount.
+  # Use this for IRSA:
+  #   annotations:
+  #     eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/aws-node-retag
+  annotations: {}
 
 # Namespace to deploy into. kube-system is recommended so the pod
 # is scheduled early and not evicted by resource pressure.
 namespace: kube-system
 
-serviceAccount:
-  name: aws-node-retag
+# Extra labels added to every resource created by this chart.
+commonLabels: {}
 
-# Set to true to log what would be tagged without making any AWS or Kubernetes writes.
-dryRun: false
+# Annotations added to the Pod.
+podAnnotations: {}
 
-# Keep at 1 — multiple replicas race on the idempotency annotation write.
-# strategy: Recreate is set in the Deployment template for safe restarts.
-replicaCount: 1
+# Extra labels added to the Pod (merged with selector labels).
+podLabels: {}
+
+# Pod-level security context.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container-level security context.
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+# PriorityClass for the Pod (e.g. system-cluster-critical).
+priorityClassName: ""
 
 resources:
   requests:
@@ -41,8 +84,8 @@ resources:
     memory: 128Mi
 
 # Place the controller on the system nodepool only.
-nodeSelector:
-  eks.amazonaws.com/nodegroup: system
+nodeSelector: {}
+  # karpenter.sh/nodepool: system
 
 tolerations:
   - key: CriticalAddonsOnly
@@ -50,3 +93,17 @@ tolerations:
   - key: node-role.kubernetes.io/control-plane
     operator: Exists
     effect: NoSchedule
+
+# Affinity rules for pod scheduling.
+affinity: {}
+
+# Additional environment variables injected into the container.
+extraEnv: []
+# - name: MY_VAR
+#   value: "my-value"
+
+# Additional volumes added to the Pod.
+extraVolumes: []
+
+# Additional volume mounts added to the container.
+extraVolumeMounts: []

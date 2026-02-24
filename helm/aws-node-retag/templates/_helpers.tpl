@@ -6,14 +6,29 @@ Expand the name of the chart.
 {{- end }}
 
 {{/*
-Full name combining release and chart name.
+Full name combining release and chart name, with fullnameOverride support.
 */}}
 {{- define "aws-node-retag.fullname" -}}
+{{- if .Values.fullnameOverride }}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else }}
 {{- printf "%s-%s" .Release.Name (include "aws-node-retag.name" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
 {{- end }}
 
 {{/*
-Common labels applied to every resource.
+ServiceAccount name — resolves to fullname when create=true and name is empty.
+*/}}
+{{- define "aws-node-retag.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create }}
+{{- default (include "aws-node-retag.fullname" .) .Values.serviceAccount.name }}
+{{- else }}
+{{- required "serviceAccount.name is required when serviceAccount.create is false" .Values.serviceAccount.name }}
+{{- end }}
+{{- end }}
+
+{{/*
+Common labels applied to every resource (standard set + user-defined commonLabels).
 */}}
 {{- define "aws-node-retag.labels" -}}
 helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | quote }}
@@ -21,6 +36,9 @@ app.kubernetes.io/name: {{ include "aws-node-retag.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- with .Values.commonLabels }}
+{{- toYaml . | nindent 0 }}
+{{- end }}
 {{- end }}
 
 {{/*
