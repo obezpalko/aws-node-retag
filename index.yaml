@@ -2,6 +2,24 @@ apiVersion: v1
 entries:
   aws-node-retag:
   - apiVersion: v2
+    appVersion: 0.1.4
+    created: "2026-02-24T21:00:48.293774813Z"
+    description: Watches EKS node creation events and applies AWS tags to EC2 instances
+      and EBS volumes
+    digest: 78fbbbaf4cb2ffc37ac53f5a0fe9f872bc07d176982d2e9eff49482dffaa72e9
+    home: https://github.com/obezpalko/aws-node-retag
+    icon: data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+CiAgPCEtLSBCYWNrZ3JvdW5kIC0tPgogIDxyZWN0IHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgcng9IjEwIiBmaWxsPSIjMjMyRjNFIi8+CiAgPCEtLSBUYWcgYm9keSBwb2ludGluZyByaWdodCAtLT4KICA8cGF0aCBkPSJNOCAxOSBMNDAgMTkgTDU3IDMyIEw0MCA0NSBMOCA0NSBaIiBmaWxsPSIjRkY5OTAwIi8+CiAgPCEtLSBUYWcgaG9sZSAtLT4KICA8Y2lyY2xlIGN4PSIxNSIgY3k9IjMyIiByPSI0IiBmaWxsPSIjMjMyRjNFIi8+CiAgPCEtLSBUYWcgdGV4dCBsaW5lcyAtLT4KICA8cmVjdCB4PSIyMyIgeT0iMjYiIHdpZHRoPSIyMCIgaGVpZ2h0PSIyLjUiIHJ4PSIxLjI1IiBmaWxsPSIjMjMyRjNFIiBvcGFjaXR5PSIwLjciLz4KICA8cmVjdCB4PSIyMyIgeT0iMzEiIHdpZHRoPSIxNiIgaGVpZ2h0PSIyLjUiIHJ4PSIxLjI1IiBmaWxsPSIjMjMyRjNFIiBvcGFjaXR5PSIwLjciLz4KICA8cmVjdCB4PSIyMyIgeT0iMzYiIHdpZHRoPSIxOCIgaGVpZ2h0PSIyLjUiIHJ4PSIxLjI1IiBmaWxsPSIjMjMyRjNFIiBvcGFjaXR5PSIwLjciLz4KPC9zdmc+Cg==
+    keywords:
+    - eks
+    - aws
+    - tagging
+    - billing
+    name: aws-node-retag
+    type: application
+    urls:
+    - https://github.com/obezpalko/aws-node-retag/releases/download/aws-node-retag-0.1.4/aws-node-retag-0.1.4.tgz
+    version: 0.1.4
+  - apiVersion: v2
     appVersion: 0.1.1
     created: "2026-02-24T17:38:14.808208965Z"
     description: Watches EKS node creation events and applies AWS tags to EC2 instances
@@ -72,4 +90,4 @@ entries:
     urls:
     - https://github.com/obezpalko/aws-node-retag/releases/download/aws-node-retag-0.1.0/aws-node-retag-0.1.0.tgz
     version: 0.1.0
-generated: "2026-02-24T17:38:14.808246695Z"
+generated: "2026-02-24T21:00:48.293798627Z"
