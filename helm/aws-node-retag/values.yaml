@@ -1,0 +1,49 @@
+# Container image
+image:
+  repository: ghcr.io/obezpalko/aws-node-retag
+  # Defaults to Chart.appVersion when empty
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# AWS tags applied to EC2 instances and EBS volumes for every new node.
+# At least one tag is required.
+# Example:
+#   tags:
+#     Environment: production
+#     Team: platform
+tags: {}
+
+# IAM Role ARN for IRSA (required).
+# The role must allow ec2:CreateTags and ec2:DescribeInstances.
+# See iam/ directory for policy and trust-policy templates.
+irsaRoleArn: ""
+
+# Namespace to deploy into. kube-system is recommended so the pod
+# is scheduled early and not evicted by resource pressure.
+namespace: kube-system
+
+serviceAccount:
+  name: aws-node-retag
+
+# Keep at 1 — multiple replicas race on the idempotency annotation write.
+# strategy: Recreate is set in the Deployment template for safe restarts.
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+# Place the controller on the system nodepool only.
+nodeSelector:
+  eks.amazonaws.com/nodegroup: system
+
+tolerations:
+  - key: CriticalAddonsOnly
+    operator: Exists
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule

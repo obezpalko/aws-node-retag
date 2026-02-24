@@ -1,0 +1,18 @@
+aws-node-retag has been deployed to namespace {{ .Values.namespace }}.
+
+The controller will apply the following AWS tags to EC2 instances and EBS
+volumes whenever a new EKS node is created:
+{{- range $k, $v := .Values.tags }}
+  {{ $k }}: {{ $v }}
+{{- end }}
+
+Check pod status:
+  kubectl -n {{ .Values.namespace }} get pods -l app.kubernetes.io/name=aws-node-retag
+
+Stream logs:
+  kubectl -n {{ .Values.namespace }} logs -l app.kubernetes.io/name=aws-node-retag -f
+
+Verify a node has been tagged:
+  kubectl get node <NODE-NAME> \
+    -o jsonpath='{.metadata.annotations.aws-node-retag\.io/tagged}'
+  # Expected output: true

@@ -1,0 +1,57 @@
+{{- if not .Values.tags }}
+  {{- fail "values.tags must not be empty — set at least one tag, e.g.: --set tags.Environment=production" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aws-node-retag.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "aws-node-retag.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "aws-node-retag.selectorLabels" . | nindent 6 }}
+  # Recreate avoids two replicas racing on the annotation write
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "aws-node-retag.selectorLabels" . | nindent 8 }}
+      annotations:
+        # Trigger pod restart when the tags config changes
+        checksum/tags: {{ .Values.tags | toJson | sha256sum }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: aws-node-retag
+          image: {{ include "aws-node-retag.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          env:
+            - name: TAGS
+              value: {{ .Values.tags | toJson | quote }}
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
