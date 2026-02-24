@@ -1,0 +1,21 @@
+apiVersion: v1
+entries:
+  aws-node-retag:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2026-02-24T15:18:50.693137495Z"
+    description: Watches EKS node creation events and applies AWS tags to EC2 instances
+      and EBS volumes
+    digest: 72d6bd5093f830ce1af2f14a8d6f97f9f0f89b919b80aa0a5b07996069a86e99
+    home: https://github.com/obezpalko/aws-node-retag
+    keywords:
+    - eks
+    - aws
+    - tagging
+    - billing
+    name: aws-node-retag
+    type: application
+    urls:
+    - https://github.com/obezpalko/aws-node-retag/releases/download/aws-node-retag-0.1.0/aws-node-retag-0.1.0.tgz
+    version: 0.1.0
+generated: "2026-02-24T15:18:50.693144257Z"
