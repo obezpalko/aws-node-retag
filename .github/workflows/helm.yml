@@ -8,7 +8,9 @@ on:
       - '.github/workflows/helm.yml'
 
 jobs:
+  # ── GitHub Pages (classic helm repo) ─────────────────────────────────────
   release:
+    name: Publish to GitHub Pages
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -32,3 +34,27 @@ jobs:
           skip_existing: true
         env:
           CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── GHCR OCI registry ─────────────────────────────────────────────────────
+  oci:
+    name: Publish to GHCR (OCI)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package and push
+        run: |
+          helm package helm/aws-node-retag --destination /tmp/helm
+          helm push /tmp/helm/aws-node-retag-*.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
