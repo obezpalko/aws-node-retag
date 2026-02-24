@@ -1,6 +1,11 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 func TestParseInstanceID(t *testing.T) {
 	cases := []struct {
@@ -44,6 +49,92 @@ func TestParseInstanceID(t *testing.T) {
 			}
 			if !tc.wantErr && got != tc.want {
 				t.Errorf("parseInstanceID(%q) = %q, want %q", tc.providerID, got, tc.want)
+			}
+		})
+	}
+}
+
+func makePVWithAffinity(name string, terms []corev1.NodeSelectorTerm) *corev1.PersistentVolume {
+	return &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Spec: corev1.PersistentVolumeSpec{
+			NodeAffinity: &corev1.VolumeNodeAffinity{
+				Required: &corev1.NodeSelector{
+					NodeSelectorTerms: terms,
+				},
+			},
+		},
+	}
+}
+
+func TestParseRegionFromPV(t *testing.T) {
+	cases := []struct {
+		name    string
+		pv      *corev1.PersistentVolume
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "topology.kubernetes.io/region",
+			pv: makePVWithAffinity("pv1", []corev1.NodeSelectorTerm{{
+				MatchExpressions: []corev1.NodeSelectorRequirement{{
+					Key:      "topology.kubernetes.io/region",
+					Operator: corev1.NodeSelectorOpIn,
+					Values:   []string{"us-east-1"},
+				}},
+			}}),
+			want: "us-east-1",
+		},
+		{
+			name: "topology.kubernetes.io/zone strips trailing char",
+			pv: makePVWithAffinity("pv2", []corev1.NodeSelectorTerm{{
+				MatchExpressions: []corev1.NodeSelectorRequirement{{
+					Key:      "topology.kubernetes.io/zone",
+					Operator: corev1.NodeSelectorOpIn,
+					Values:   []string{"eu-west-1b"},
+				}},
+			}}),
+			want: "eu-west-1",
+		},
+		{
+			name: "topology.ebs.csi.aws.com/zone strips trailing char",
+			pv: makePVWithAffinity("pv3", []corev1.NodeSelectorTerm{{
+				MatchExpressions: []corev1.NodeSelectorRequirement{{
+					Key:      "topology.ebs.csi.aws.com/zone",
+					Operator: corev1.NodeSelectorOpIn,
+					Values:   []string{"ap-southeast-2c"},
+				}},
+			}}),
+			want: "ap-southeast-2",
+		},
+		{
+			name: "no nodeAffinity returns error",
+			pv: &corev1.PersistentVolume{
+				ObjectMeta: metav1.ObjectMeta{Name: "pv4"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "nodeAffinity with no matching key returns error",
+			pv: makePVWithAffinity("pv5", []corev1.NodeSelectorTerm{{
+				MatchExpressions: []corev1.NodeSelectorRequirement{{
+					Key:      "some.other/label",
+					Operator: corev1.NodeSelectorOpIn,
+					Values:   []string{"value"},
+				}},
+			}}),
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseRegionFromPV(tc.pv)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("parseRegionFromPV() err=%v, wantErr=%v", err, tc.wantErr)
+			}
+			if !tc.wantErr && got != tc.want {
+				t.Errorf("parseRegionFromPV() = %q, want %q", got, tc.want)
 			}
 		})
 	}

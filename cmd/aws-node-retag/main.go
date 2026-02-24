@@ -115,18 +115,40 @@ func main() {
 		},
 	})
 
+	pvInformer := factory.Core().V1().PersistentVolumes().Informer()
+	pvInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			pv, ok := obj.(*corev1.PersistentVolume)
+			if !ok {
+				return
+			}
+			tagger.handlePV(ctx, pv)
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldPV, ok1 := oldObj.(*corev1.PersistentVolume)
+			newPV, ok2 := newObj.(*corev1.PersistentVolume)
+			if !ok1 || !ok2 {
+				return
+			}
+			// Fire when PV transitions to Bound (dynamic provisioning completes).
+			if oldPV.Status.Phase != corev1.VolumeBound && newPV.Status.Phase == corev1.VolumeBound {
+				tagger.handlePV(ctx, newPV)
+			}
+		},
+	})
+
 	stopCh := make(chan struct{})
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 
 	factory.Start(stopCh)
 	logger.Info("waiting for cache sync")
-	if !cache.WaitForCacheSync(stopCh, nodeInformer.HasSynced) {
+	if !cache.WaitForCacheSync(stopCh, nodeInformer.HasSynced, pvInformer.HasSynced) {
 		logger.Error("timed out waiting for cache sync")
 		close(stopCh)
 		os.Exit(1)
 	}
-	logger.Info("cache synced, watching for nodes")
+	logger.Info("cache synced, watching for nodes and persistent volumes")
 
 	<-sigCh
 	logger.Info("shutting down")
@@ -276,6 +298,96 @@ func (t *Tagger) annotateNode(ctx context.Context, nodeName string) error {
 	_, err := t.k8s.CoreV1().Nodes().Patch(
 		ctx,
 		nodeName,
+		types.MergePatchType,
+		[]byte(patch),
+		metav1.PatchOptions{},
+	)
+	return err
+}
+
+// handlePV tags the EBS volume backing a PersistentVolume.
+// It is idempotent: PVs that already carry the tagged annotation are skipped.
+func (t *Tagger) handlePV(ctx context.Context, pv *corev1.PersistentVolume) {
+	log := t.logger.With("pv", pv.Name)
+
+	if pv.Annotations[annotationKey] == annotationValue {
+		log.Debug("PV already tagged, skipping")
+		return
+	}
+
+	var volumeID string
+	switch {
+	case pv.Spec.CSI != nil && pv.Spec.CSI.Driver == "ebs.csi.aws.com":
+		volumeID = pv.Spec.CSI.VolumeHandle
+	case pv.Spec.AWSElasticBlockStore != nil:
+		volumeID = pv.Spec.AWSElasticBlockStore.VolumeID
+	default:
+		log.Debug("PV is not EBS-backed, skipping")
+		return
+	}
+
+	region, err := parseRegionFromPV(pv)
+	if err != nil {
+		log.Error("failed to determine region from PV", "error", err)
+		return
+	}
+
+	log = log.With("volumeID", volumeID, "region", region)
+	log.Info("tagging PV")
+
+	if err := t.applyTags(ctx, region, []string{volumeID}); err != nil {
+		log.Error("failed to apply tags", "error", err)
+		return
+	}
+
+	if err := t.annotatePV(ctx, pv.Name); err != nil {
+		log.Error("failed to annotate PV (tags were applied)", "error", err)
+		return
+	}
+
+	log.Info("PV tagged successfully")
+}
+
+// parseRegionFromPV derives the AWS region from the PV's node affinity topology labels.
+// It checks topology.kubernetes.io/region (used directly), topology.kubernetes.io/zone
+// and topology.ebs.csi.aws.com/zone (both require stripping the trailing AZ letter).
+func parseRegionFromPV(pv *corev1.PersistentVolume) (string, error) {
+	if pv.Spec.NodeAffinity == nil || pv.Spec.NodeAffinity.Required == nil {
+		return "", fmt.Errorf("PV %s has no nodeAffinity", pv.Name)
+	}
+
+	for _, term := range pv.Spec.NodeAffinity.Required.NodeSelectorTerms {
+		for _, expr := range term.MatchExpressions {
+			if len(expr.Values) == 0 {
+				continue
+			}
+			val := expr.Values[0]
+			switch expr.Key {
+			case "topology.kubernetes.io/region":
+				return val, nil
+			case "topology.kubernetes.io/zone", "topology.ebs.csi.aws.com/zone":
+				if len(val) < 2 {
+					return "", fmt.Errorf("AZ value too short: %q", val)
+				}
+				return val[:len(val)-1], nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("PV %s has no recognized topology key in nodeAffinity", pv.Name)
+}
+
+// annotatePV patches the PersistentVolume with the idempotency annotation.
+func (t *Tagger) annotatePV(ctx context.Context, pvName string) error {
+	if t.dryRun {
+		t.logger.Info("dry-run: would annotate PV", "pv", pvName, "annotation", annotationKey)
+		return nil
+	}
+
+	patch := fmt.Sprintf(`{"metadata":{"annotations":{%q:%q}}}`, annotationKey, annotationValue)
+	_, err := t.k8s.CoreV1().PersistentVolumes().Patch(
+		ctx,
+		pvName,
 		types.MergePatchType,
 		[]byte(patch),
 		metav1.PatchOptions{},
