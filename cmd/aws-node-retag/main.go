@@ -34,6 +34,7 @@ type Tagger struct {
 	k8s    kubernetes.Interface
 	ec2    *ec2.Client
 	tags   map[string]string
+	dryRun bool
 	logger *slog.Logger
 }
 
@@ -55,6 +56,11 @@ func main() {
 		os.Exit(1)
 	}
 	logger.Info("loaded tags", "tags", tags)
+
+	dryRun := os.Getenv("DRY_RUN") == "true"
+	if dryRun {
+		logger.Info("dry-run mode enabled — no AWS tags or node annotations will be written")
+	}
 
 	k8sCfg, err := rest.InClusterConfig()
 	if err != nil {
@@ -79,6 +85,7 @@ func main() {
 		k8s:    k8sClient,
 		ec2:    ec2Client,
 		tags:   tags,
+		dryRun: dryRun,
 		logger: logger,
 	}
 
@@ -241,6 +248,11 @@ func (t *Tagger) applyTags(ctx context.Context, region string, resourceIDs []str
 		})
 	}
 
+	if t.dryRun {
+		t.logger.Info("dry-run: would apply tags", "resources", resourceIDs, "tags", t.tags)
+		return nil
+	}
+
 	_, err := t.ec2.CreateTags(ctx, &ec2.CreateTagsInput{
 		Resources: resourceIDs,
 		Tags:      ec2Tags,
@@ -255,6 +267,11 @@ func (t *Tagger) applyTags(ctx context.Context, region string, resourceIDs []str
 
 // annotateNode patches the node with the idempotency annotation.
 func (t *Tagger) annotateNode(ctx context.Context, nodeName string) error {
+	if t.dryRun {
+		t.logger.Info("dry-run: would annotate node", "node", nodeName, "annotation", annotationKey)
+		return nil
+	}
+
 	patch := fmt.Sprintf(`{"metadata":{"annotations":{%q:%q}}}`, annotationKey, annotationValue)
 	_, err := t.k8s.CoreV1().Nodes().Patch(
 		ctx,

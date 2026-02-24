@@ -25,6 +25,9 @@ namespace: kube-system
 serviceAccount:
   name: aws-node-retag
 
+# Set to true to log what would be tagged without making any AWS or Kubernetes writes.
+dryRun: false
+
 # Keep at 1 — multiple replicas race on the idempotency annotation write.
 # strategy: Recreate is set in the Deployment template for safe restarts.
 replicaCount: 1

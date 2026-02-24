@@ -46,6 +46,8 @@ spec:
           env:
             - name: TAGS
               value: {{ .Values.tags | toJson | quote }}
+            - name: DRY_RUN
+              value: {{ .Values.dryRun | quote }}
 
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
