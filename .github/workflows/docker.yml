@@ -151,11 +151,9 @@ jobs:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.manifest.outputs.digest }}
           sbom-path: sbom.spdx.json
-          push-to-registry: true
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v2
         with:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.manifest.outputs.digest }}
-          push-to-registry: true
