@@ -2,8 +2,8 @@ apiVersion: v2
 name: aws-node-retag
 description: Watches EKS node creation events and applies AWS tags to EC2 instances and EBS volumes
 type: application
-version: 0.1.4
-appVersion: "0.1.4"
+version: 0.1.5
+appVersion: "0.1.5"
 keywords:
   - eks
   - aws
