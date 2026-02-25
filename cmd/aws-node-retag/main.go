@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -15,6 +16,7 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	smithy "github.com/aws/smithy-go"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -335,8 +337,28 @@ func (t *Tagger) handlePV(ctx context.Context, pv *corev1.PersistentVolume) {
 	log = log.With("volumeID", volumeID, "region", region)
 	log.Info("tagging PV")
 
-	if err := t.applyTags(ctx, region, []string{volumeID}); err != nil {
+	const maxAttempts = 5
+	backoff := 5 * time.Second
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		err = t.applyTags(ctx, region, []string{volumeID})
+		if err == nil {
+			break
+		}
+		if isVolumeNotFound(err) && attempt < maxAttempts {
+			log.Warn("volume not yet visible in EC2 API, retrying", "attempt", attempt, "backoff", backoff)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(backoff):
+			}
+			backoff *= 2
+			continue
+		}
 		log.Error("failed to apply tags", "error", err)
+		return
+	}
+	if err != nil {
+		log.Error("failed to apply tags after retries", "error", err)
 		return
 	}
 
@@ -375,6 +397,13 @@ func parseRegionFromPV(pv *corev1.PersistentVolume) (string, error) {
 	}
 
 	return "", fmt.Errorf("PV %s has no recognized topology key in nodeAffinity", pv.Name)
+}
+
+// isVolumeNotFound reports whether the error is an EC2 InvalidVolume.NotFound,
+// which occurs when the EBS volume is not yet visible in the API after creation.
+func isVolumeNotFound(err error) bool {
+	var apiErr smithy.APIError
+	return errors.As(err, &apiErr) && apiErr.ErrorCode() == "InvalidVolume.NotFound"
 }
 
 // annotatePV patches the PersistentVolume with the idempotency annotation.
