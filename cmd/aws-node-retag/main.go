@@ -124,6 +124,11 @@ func main() {
 			if !ok {
 				return
 			}
+			// Only handle Bound PVs — skip Released/Available/Failed volumes,
+			// whose backing EBS volumes may no longer exist.
+			if pv.Status.Phase != corev1.VolumeBound {
+				return
+			}
 			tagger.handlePV(ctx, pv)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
