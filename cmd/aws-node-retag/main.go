@@ -322,13 +322,8 @@ func (t *Tagger) handlePV(ctx context.Context, pv *corev1.PersistentVolume) {
 		return
 	}
 
-	var volumeID string
-	switch {
-	case pv.Spec.CSI != nil && pv.Spec.CSI.Driver == "ebs.csi.aws.com":
-		volumeID = pv.Spec.CSI.VolumeHandle
-	case pv.Spec.AWSElasticBlockStore != nil:
-		volumeID = pv.Spec.AWSElasticBlockStore.VolumeID
-	default:
+	volumeID, ok := ebsVolumeID(pv)
+	if !ok {
 		log.Debug("PV is not EBS-backed, skipping")
 		return
 	}
@@ -373,6 +368,18 @@ func (t *Tagger) handlePV(ctx context.Context, pv *corev1.PersistentVolume) {
 	}
 
 	log.Info("PV tagged successfully")
+}
+
+// ebsVolumeID returns the EBS volume ID behind a PV, for the self-managed EBS CSI
+// driver, the EKS Auto Mode driver and legacy in-tree volumes.
+func ebsVolumeID(pv *corev1.PersistentVolume) (string, bool) {
+	switch {
+	case pv.Spec.CSI != nil && (pv.Spec.CSI.Driver == "ebs.csi.aws.com" || pv.Spec.CSI.Driver == "ebs.csi.eks.amazonaws.com"):
+		return pv.Spec.CSI.VolumeHandle, true
+	case pv.Spec.AWSElasticBlockStore != nil:
+		return pv.Spec.AWSElasticBlockStore.VolumeID, true
+	}
+	return "", false
 }
 
 // parseRegionFromPV derives the AWS region from the PV's node affinity topology labels.

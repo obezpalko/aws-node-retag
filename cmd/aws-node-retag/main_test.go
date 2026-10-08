@@ -186,3 +186,32 @@ func TestParseRegion(t *testing.T) {
 		})
 	}
 }
+
+func TestEBSVolumeID(t *testing.T) {
+	csi := func(driver string) *corev1.PersistentVolume {
+		return &corev1.PersistentVolume{Spec: corev1.PersistentVolumeSpec{PersistentVolumeSource: corev1.PersistentVolumeSource{
+			CSI: &corev1.CSIPersistentVolumeSource{Driver: driver, VolumeHandle: "vol-123"},
+		}}}
+	}
+	cases := []struct {
+		name   string
+		pv     *corev1.PersistentVolume
+		want   string
+		wantOK bool
+	}{
+		{"ebs csi driver", csi("ebs.csi.aws.com"), "vol-123", true},
+		{"eks auto mode driver", csi("ebs.csi.eks.amazonaws.com"), "vol-123", true},
+		{"other csi driver", csi("efs.csi.aws.com"), "", false},
+		{"legacy in-tree", &corev1.PersistentVolume{Spec: corev1.PersistentVolumeSpec{PersistentVolumeSource: corev1.PersistentVolumeSource{
+			AWSElasticBlockStore: &corev1.AWSElasticBlockStoreVolumeSource{VolumeID: "vol-456"},
+		}}}, "vol-456", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := ebsVolumeID(tc.pv)
+			if got != tc.want || ok != tc.wantOK {
+				t.Errorf("ebsVolumeID() = (%q, %v), want (%q, %v)", got, ok, tc.want, tc.wantOK)
+			}
+		})
+	}
+}
