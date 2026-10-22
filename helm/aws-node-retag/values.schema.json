@@ -4,6 +4,12 @@
   "additionalProperties": false,
   "required": ["tags"],
   "properties": {
+    "enabled": {
+      "type": "boolean"
+    },
+    "global": {
+      "type": "object"
+    },
     "nameOverride": {
       "type": "string"
     },
@@ -177,3 +183,4 @@
     "irsaRoleArn": false
   }
 }
+
