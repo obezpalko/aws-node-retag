@@ -9,13 +9,13 @@ The controller runs two independent watchers:
 **Node watcher** — fires when a node appears or its `ProviderID` is first set:
 1. Parses the EC2 instance ID from `node.Spec.ProviderID`.
 2. Calls `ec2:DescribeInstances` to find all attached EBS volumes.
-3. Calls `ec2:CreateTags` on the instance and every attached volume.
+3. Calls `ec2:DescribeTags` and skips resources that already carry the configured tags, then calls `ec2:CreateTags` on the rest of the instance and attached volumes.
 4. Patches the node with annotation `aws-node-retag.io/tagged: "true"` to prevent re-tagging.
 
 **PersistentVolume watcher** — fires when a PV transitions to `Bound` (dynamic provisioning):
 1. Detects the EBS volume ID from the PV spec (CSI `ebs.csi.aws.com`, EKS Auto Mode `ebs.csi.eks.amazonaws.com`, or legacy `awsElasticBlockStore`).
 2. Derives the AWS region from the PV's node affinity topology labels.
-3. Calls `ec2:CreateTags` on the volume (retries up to 5× on `InvalidVolume.NotFound` — the CSI driver can mark a PV Bound before the volume is visible in the EC2 API).
+3. Calls `ec2:DescribeTags` and skips the volume if it already carries the configured tags, otherwise calls `ec2:CreateTags` (retries up to 5× on `InvalidVolume.NotFound` — the CSI driver can mark a PV Bound before the volume is visible in the EC2 API).
 4. Patches the PV with annotation `aws-node-retag.io/tagged: "true"` to prevent re-tagging.
 
 Tags are configured once per cluster; all nodes and dynamically provisioned EBS volumes receive the same set of tags.
