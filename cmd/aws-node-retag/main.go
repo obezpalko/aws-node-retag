@@ -267,8 +267,13 @@ func (t *Tagger) listAttachedVolumes(ctx context.Context, region, instanceID str
 	return volumeIDs, nil
 }
 
-// applyTags calls ec2:CreateTags on the given resource IDs (instance + volumes).
+// applyTags calls ec2:CreateTags on the resources that lack the configured tags (instance + volumes).
 func (t *Tagger) applyTags(ctx context.Context, region string, resourceIDs []string) error {
+	resourceIDs = t.untaggedResources(ctx, region, resourceIDs)
+	if len(resourceIDs) == 0 {
+		return nil
+	}
+
 	ec2Tags := make([]ec2types.Tag, 0, len(t.tags))
 	for k, v := range t.tags {
 		ec2Tags = append(ec2Tags, ec2types.Tag{
@@ -292,6 +297,61 @@ func (t *Tagger) applyTags(ctx context.Context, region string, resourceIDs []str
 		return fmt.Errorf("CreateTags: %w", err)
 	}
 	return nil
+}
+
+// untaggedResources drops the resources that already carry every configured tag with the
+// configured value. If the tags cannot be read (e.g. ec2:DescribeTags is not granted) it
+// returns all resources, so tagging proceeds as before.
+func (t *Tagger) untaggedResources(ctx context.Context, region string, resourceIDs []string) []string {
+	keys := make([]string, 0, len(t.tags))
+	for k := range t.tags {
+		keys = append(keys, k)
+	}
+
+	existing := map[string]map[string]string{}
+	pages := ec2.NewDescribeTagsPaginator(t.ec2, &ec2.DescribeTagsInput{
+		Filters: []ec2types.Filter{
+			{Name: aws.String("resource-id"), Values: resourceIDs},
+			{Name: aws.String("key"), Values: keys},
+		},
+	})
+	for pages.HasMorePages() {
+		page, err := pages.NextPage(ctx, func(o *ec2.Options) {
+			o.Region = region
+		})
+		if err != nil {
+			t.logger.Warn("could not read existing tags, tagging all resources", "error", err)
+			return resourceIDs
+		}
+		for _, d := range page.Tags {
+			id := aws.ToString(d.ResourceId)
+			if existing[id] == nil {
+				existing[id] = map[string]string{}
+			}
+			existing[id][aws.ToString(d.Key)] = aws.ToString(d.Value)
+		}
+	}
+
+	var missing []string
+	for _, id := range resourceIDs {
+		if !hasTags(existing[id], t.tags) {
+			missing = append(missing, id)
+		}
+	}
+	if len(missing) < len(resourceIDs) {
+		t.logger.Info("resources already tagged, skipping", "resources", len(resourceIDs)-len(missing))
+	}
+	return missing
+}
+
+// hasTags reports whether have contains every key in want with the same value.
+func hasTags(have, want map[string]string) bool {
+	for k, v := range want {
+		if got, ok := have[k]; !ok || got != v {
+			return false
+		}
+	}
+	return true
 }
 
 // annotateNode patches the node with the idempotency annotation.

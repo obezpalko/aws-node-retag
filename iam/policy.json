@@ -5,7 +5,8 @@
       "Sid": "DescribeInstancesToFindVolumes",
       "Effect": "Allow",
       "Action": [
-        "ec2:DescribeInstances"
+        "ec2:DescribeInstances",
+        "ec2:DescribeTags"
       ],
       "Resource": "*"
     },

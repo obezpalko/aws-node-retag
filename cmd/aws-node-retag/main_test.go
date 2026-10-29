@@ -215,3 +215,24 @@ func TestEBSVolumeID(t *testing.T) {
 		})
 	}
 }
+
+func TestHasTags(t *testing.T) {
+	want := map[string]string{"Customer": "acme", "Owner": "ops"}
+	cases := []struct {
+		name string
+		have map[string]string
+		want bool
+	}{
+		{"all present", map[string]string{"Customer": "acme", "Owner": "ops", "Name": "x"}, true},
+		{"missing key", map[string]string{"Customer": "acme"}, false},
+		{"different value", map[string]string{"Customer": "acme", "Owner": "other"}, false},
+		{"no tags", nil, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := hasTags(tc.have, want); got != tc.want {
+				t.Errorf("hasTags() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
